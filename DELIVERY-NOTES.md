@@ -36,6 +36,8 @@ one-to-three-line corrections; two are behavioural.
 | # | Defect | Fix | File |
 |---|---|---|---|
 | 1 | **Demo blocker.** `accountKanbanConfigService` did not exist → every account page threw | Added the module and the import | `lib/account-kanban-config-service.ts` (new), `components/account-overview.tsx` |
+| 1b | **No way to reach Estimates from the account.** The page was a sibling route with no link to it anywhere | Added an **Estimates** button to the account header, shown only with `view_estimates` | `components/account-overview.tsx` |
+| 1c | **`npm install` failed.** `flexible-layout-tools` depends on `@utilityforge/dynamic-interface-kit`, which has been unpublished from npm — a fresh install died with `E404` | The plugin is already optional at runtime (tailwind.config.js wraps it in try/catch), so the dependency is now an `optionalDependencies` entry | `package.json` |
 | 2 | **A partial `PATCH` wiped data.** The route passed `notes ?? null`, so editing only the title silently cleared the notes and detached the project | Absent fields are passed through untouched | `app/api/accounts/[accountId]/estimates/[estimateId]/route.ts` |
 | 3 | **A negative amount returned `500`, not `400`.** The schema accepted negative amounts and zero quantities; the failure surfaced deeper in the stack | `quantityMilli >= 1`, `unitAmountMinor >= 0` | `lib/validation-schemas.ts` |
 | 4 | **A revoked membership still passed the route guard.** `hasAccountAccess()` ignored `account_members.removed_at`, while the SQL helper honoured it — the two layers disagreed and the weaker one was in front | Filter on `removed_at is null` | `lib/permission-checker.ts` |
@@ -76,6 +78,17 @@ It is a **sibling route of the account page**, not a tab inside it:
 ```
 http://localhost:3000/accounts/<account-uuid>/estimates
 ```
+
+**And there is now a button for it.** The account detail page carries an
+**Estimates** button in the header, immediately to the left of "Edit Account"
+(the button with the receipt icon). It is shown only to a user who holds
+`view_estimates` on that account, and it links straight to the estimates list.
+The estimates page links back to the account the same way.
+
+That button did not exist before this delivery — the page was a sibling route
+with **no navigation affordance anywhere**, which is exactly why "how do I get
+to the Estimates?" was a reasonable question. If you are looking at an older
+copy of the archive, that is why you cannot find it.
 
 For the seeded demo data:
 

@@ -212,6 +212,13 @@ breadcrumb already resolves `/accounts/<uuid>` to the account name, so the page
 gets correct navigation for free. `noSidebarPages` keeps it out of the global
 sidebar — it is reached through the account, which is where it belongs.
 
+Being a sibling route is not the same as being unreachable, so the account
+page carries an **Estimates** button in its header, next to "Edit Account". It
+is rendered only for a user who holds `view_estimates` on that account, and it
+links straight to `/accounts/<accountId>/estimates`. The estimates page links
+back to the account the same way. Without that button the feature was only
+reachable by typing the URL — a reviewer would have concluded it was missing.
+
 ### 2.9 The new API routes are TypeScript; the old ones are not
 
 Every pre-existing file under `app/api/**` is a `.js` CommonJS file with

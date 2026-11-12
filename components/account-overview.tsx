@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Move,
   Edit,
+  Receipt,
 } from 'lucide-react';
 import {
   AccountWithProjects,
@@ -142,6 +143,7 @@ export function AccountOverview({
   const [canCreateProject, setCanCreateProject] = useState(false);
   const [canDeleteProject, setCanDeleteProject] = useState(false);
   const [canEditAccount, setCanEditAccount] = useState(false);
+  const [canViewEstimates, setCanViewEstimates] = useState(false);
 
   // NOTE: Kanban/Gantt for projects is deprecated (workflows replace it), only table view remains
 
@@ -232,10 +234,12 @@ export function AccountOverview({
     if (!userProfile) return;
     const manage = await hasPermission(userProfile, Permission.MANAGE_PROJECTS, { accountId });
     const editAccount = await hasPermission(userProfile, Permission.MANAGE_ACCOUNTS, { accountId });
+    const viewEstimates = await hasPermission(userProfile, Permission.VIEW_ESTIMATES, { accountId });
 
     setCanCreateProject(manage);
     setCanDeleteProject(manage);
     setCanEditAccount(editAccount);
+    setCanViewEstimates(viewEstimates);
   }, [userProfile, accountId]);
 
   useEffect(() => {
@@ -586,6 +590,15 @@ export function AccountOverview({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
+                {canViewEstimates && (
+                  <Link href={`/accounts/${accountId}/estimates`}>
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <Receipt className="h-4 w-4" />
+                      <span className="hidden sm:inline">Estimates</span>
+                      <span className="sm:hidden">Est.</span>
+                    </Button>
+                  </Link>
+                )}
                 {canEditAccount && (
                   <AccountEditDialog
                     account={account}
