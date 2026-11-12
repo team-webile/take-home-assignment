@@ -1,3 +1,4 @@
+import { apiFetch } from './api-config';
 import { createClientSupabase } from './supabase';
 import { UserProfile, UserRole, Role, Department } from './supabase';
 import { logger } from './debug-logger';

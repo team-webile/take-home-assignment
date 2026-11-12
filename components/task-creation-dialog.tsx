@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-config';
 import { useState, useEffect } from 'react';
 import { addDays } from 'date-fns';
 import {

@@ -43,7 +43,36 @@ async function GET(request) {
       );
     }
 
-    const { data: accounts, error } = await admin.from('accounts').select('*').order('name');
+    // Tenant scoping: the list is limited to the accounts the caller can
+    // reach, either because they are a member of the account or because they
+    // manage it. `removed_at` marks a revoked membership and must not grant
+    // access. Superadmins see everything.
+    let accountQuery = admin.from('accounts').select('*').order('name');
+
+    if (!userProfile.is_superadmin) {
+      const [{ data: memberships }, { data: managed }] = await Promise.all([
+        admin
+          .from('account_members')
+          .select('account_id')
+          .eq('user_id', user.id)
+          .is('removed_at', null),
+        admin.from('accounts').select('id').eq('account_manager_id', user.id),
+      ]);
+
+      const accessibleIds = [
+        ...new Set([
+          ...(memberships || []).map((m) => m.account_id),
+          ...(managed || []).map((a) => a.id),
+        ]),
+      ];
+
+      if (accessibleIds.length === 0) {
+        return NextResponse.json({ success: true, accounts: [] }, { status: 200 });
+      }
+      accountQuery = accountQuery.in('id', accessibleIds);
+    }
+
+    const { data: accounts, error } = await accountQuery;
 
     if (error) {
       logger.error('Failed to fetch accounts', { action: 'list_accounts' }, error );

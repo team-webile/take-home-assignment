@@ -469,7 +469,7 @@ async function loadSeedData(supabase: SupabaseClient) {
       description:
         'Full redesign of the investor-facing client portal — new information architecture, refreshed UI, and improved document access flows',
       account_id: 'aaaaaaaa-aaaa-aaaa-aaaa-000000000001',
-      status: 'active',
+      status: 'in_progress',
       priority: 'high',
       start_date: '2025-01-15',
       end_date: '2025-03-15',
@@ -497,7 +497,7 @@ async function loadSeedData(supabase: SupabaseClient) {
       description:
         'Cross-platform mobile app for appointment booking, secure messaging with care teams, and prescription refill requests',
       account_id: 'aaaaaaaa-aaaa-aaaa-aaaa-000000000002',
-      status: 'active',
+      status: 'in_progress',
       priority: 'urgent',
       start_date: '2025-01-10',
       end_date: '2025-02-28',
@@ -525,7 +525,7 @@ async function loadSeedData(supabase: SupabaseClient) {
       description:
         'Monthly content production and scheduling — 20 posts/month across Instagram and Facebook, plus monthly performance reporting',
       account_id: 'aaaaaaaa-aaaa-aaaa-aaaa-000000000003',
-      status: 'active',
+      status: 'in_progress',
       priority: 'low',
       start_date: '2025-01-01',
       end_date: '2025-12-31',
@@ -553,7 +553,7 @@ async function loadSeedData(supabase: SupabaseClient) {
       description:
         'Internal tool for tracking weekly KPIs across all active accounts — no workflow, managed directly by the team',
       account_id: 'aaaaaaaa-aaaa-aaaa-aaaa-000000000001',
-      status: 'active',
+      status: 'in_progress',
       priority: 'low',
       start_date: '2025-01-15',
       end_date: '2025-02-28',

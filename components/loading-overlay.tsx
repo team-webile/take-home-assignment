@@ -51,6 +51,10 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Stable primitive: `searchParams` is a new object on every render, which
+  // would re-run the route-change effect continuously and prevent its timers
+  // from ever firing.
+  const searchParamsString = searchParams.toString();
   const loadingStartTime = useRef<number>(Date.now());
   const pendingStop = useRef<boolean>(false);
   const pendingContentCount = useRef<number>(0);
@@ -61,8 +65,15 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
     loadingStartTime.current = Date.now();
     pendingStop.current = false;
     pendingContentCount.current = 0;
-    setIsLoading(true);
-    setProgress(0);
+    // Defer the state update out of the caller's render phase. A synchronous
+    // setState from a handler that Next.js runs while the Router is rendering
+    // aborts that render ("Cannot update a component while rendering a
+    // different component"), which leaves the overlay stuck and swallows the
+    // pending navigation.
+    setTimeout(() => {
+      setIsLoading(true);
+      setProgress(0);
+    }, 0);
   }, []);
 
   const stopLoading = useCallback(() => {
@@ -176,15 +187,32 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
   // Track route changes (but not on initial load)
   useEffect(() => {
     if (!isInitialLoad) {
-      // When route changes, check if we should stop loading
-      // Give a small delay for any pending content to register
-      setTimeout(() => {
+      // Fast path: content normally registers itself within a frame or two.
+      const quick = setTimeout(() => {
         if (pendingContentCount.current === 0) {
           stopLoading();
         }
       }, 500);
+
+      // Safety net: the overlay must never be able to stick. A widget that
+      // registers pending content and then fails to mark itself ready (for
+      // example because a client-side error aborted its fetch) would
+      // otherwise leave the app blocked behind the overlay forever.
+      const fallback = setTimeout(() => {
+        if (pendingContentCount.current > 0) {
+          console.warn(
+            `Loading overlay timeout: ${pendingContentCount.current} pending content items`,
+          );
+        }
+        stopLoading();
+      }, MAX_CONTENT_WAIT_TIME);
+
+      return () => {
+        clearTimeout(quick);
+        clearTimeout(fallback);
+      };
     }
-  }, [pathname, searchParams, stopLoading, isInitialLoad]);
+  }, [pathname, searchParamsString, stopLoading, isInitialLoad]);
 
   // Intercept navigation (anchor clicks)
   useEffect(() => {
@@ -207,17 +235,6 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
     document.addEventListener('click', handleClick, true);
     return () => document.removeEventListener('click', handleClick, true);
   }, [pathname, startLoading]);
-
-  // Handle beforeunload (page refresh/close)
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Show loading screen on page unload (refresh)
-      startLoading();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [startLoading]);
 
   // Handle tab visibility changes (prevent reload on tab switch)
   useEffect(() => {

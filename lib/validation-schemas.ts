@@ -457,6 +457,67 @@ export const submitClientFeedbackSchema = z.object({
 });
 
 // Export type inference helpers
+// ============================================================================
+// ESTIMATE SCHEMAS (Phase 2 — Revenue & Billing)
+// ============================================================================
+// Money is always expressed in integer minor units. Quantities are held in
+// thousandths so that fractional hours are representable exactly.
+
+export const estimateStatusSchema = z.enum([
+  'draft',
+  'sent',
+  'accepted',
+  'rejected',
+  'void',
+]);
+
+export const estimateLineItemInputSchema = z.object({
+  description: z.string().min(1, 'Line description is required').max(500),
+  quantityMilli: z.number().int('Quantity must be a whole number of thousandths'),
+  unitAmountMinor: z.number().int('Unit amount must be an integer of minor units'),
+  taxRateBasisPoints: z.number().int().min(0).max(10000).optional().default(0),
+});
+
+export const createEstimateSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
+  reference: z.string().min(1, 'Reference is required').max(50).optional(),
+  projectId: optionalUuidSchema.optional().nullable(),
+  currency: z
+    .string()
+    .regex(/^[A-Za-z]{3}$/, 'Currency must be a 3 letter ISO code')
+    .optional(),
+  notes: z.string().max(2000, 'Notes too long').optional().nullable(),
+  validUntil: dateOnlySchema.optional().nullable(),
+  lineItems: z
+    .array(estimateLineItemInputSchema)
+    .min(1, 'At least one line item is required')
+    .max(200, 'Too many line items'),
+});
+
+export const updateEstimateSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  validUntil: dateOnlySchema.optional().nullable(),
+  projectId: optionalUuidSchema.optional().nullable(),
+  lineItems: z.array(estimateLineItemInputSchema).min(1).max(200).optional(),
+});
+
+export const transitionEstimateSchema = z.object({
+  status: estimateStatusSchema,
+  note: z.string().max(1000, 'Note too long').optional().nullable(),
+});
+
+export const getEstimatesQuerySchema = z.object({
+  status: estimateStatusSchema.optional(),
+  projectId: optionalUuidSchema.optional(),
+  // `false` selects estimates that are not linked to a project at all.
+  // `true` selects the ones that are.
+  hasProject: z.enum(['true', 'false']).optional(),
+  q: z.string().max(200).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;

@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2, FolderKanban, ExternalLink, ArrowRight, Activity } from 'lucide-react';

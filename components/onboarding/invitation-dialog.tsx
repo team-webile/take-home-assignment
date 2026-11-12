@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-config';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Send } from 'lucide-react';

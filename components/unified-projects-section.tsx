@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-config';
 import { toast } from 'sonner';
 
 import { useState, useEffect, useMemo } from 'react';

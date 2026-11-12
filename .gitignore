@@ -32,6 +32,8 @@ backend/dist/
 .env.*.local
 backend/.env
 supabase/.env
+# npm registry credentials — the token lives here, never commit it
+.npmrc
 # Keep example/template files so others can onboard
 !.env.local.template
 !.npmrc.example
@@ -140,3 +142,6 @@ performance-test.js
 .claude/
 .claude.json
 .codacy/
+
+# Local dev-server log (not part of the project)
+.devserver.log

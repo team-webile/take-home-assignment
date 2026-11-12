@@ -184,6 +184,28 @@ export const createAdminSupabaseClient = () => {
 export const createServerSupabaseClient = createServerSupabase;
 
 /**
+ * Get the authenticated auth user for an API route request.
+ *
+ * This resolves identity only (id, email, ...). Routes that need the user's
+ * *profile* — roles and permissions — must use `getUserProfileFromRequest()`
+ * instead, which resolves the profile and its role assignments.
+ *
+ * Returns null when the request carries no valid Supabase session.
+ */
+export async function getUserFromRequest(request: NextRequest) {
+  const supabase = createApiSupabaseClient(request);
+  if (!supabase) return null;
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) return null;
+  return user;
+}
+
+/**
  * Get user profile from API route supabase client
  * Use this in API routes to get the authenticated user's profile
  */

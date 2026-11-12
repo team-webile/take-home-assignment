@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS roles (
   department_id     UUID REFERENCES departments(id) ON DELETE SET NULL,
   permissions       JSONB NOT NULL DEFAULT '{}',
   hierarchy_level   INTEGER NOT NULL DEFAULT 0,
+  display_order     INTEGER NOT NULL DEFAULT 0,
   reporting_role_id UUID REFERENCES roles(id) ON DELETE SET NULL,
   is_system_role    BOOLEAN NOT NULL DEFAULT FALSE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -130,8 +131,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name                  TEXT NOT NULL,
   description           TEXT,
-  status                TEXT NOT NULL DEFAULT 'planning'
-                          CHECK (status IN ('planning','in_progress','review','complete','on_hold')),
+  status                TEXT NOT NULL DEFAULT 'active'
+                          CHECK (status IN ('active','inactive','archived')),
   primary_contact_name  TEXT,
   primary_contact_email TEXT,
   account_manager_id    UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
@@ -358,8 +359,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   name            TEXT NOT NULL,
   description     TEXT,
   status          TEXT NOT NULL DEFAULT 'todo'
-                    CHECK (status IN ('todo','in_progress','done','complete')),
+                    CHECK (status IN ('backlog','todo','in_progress','review','done','blocked')),
   priority        TEXT CHECK (priority IN ('low','medium','high','urgent')),
+  display_order   INTEGER NOT NULL DEFAULT 0,
   assigned_to     UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
   created_by      UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
   due_date        DATE,

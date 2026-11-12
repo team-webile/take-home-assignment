@@ -27,11 +27,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, RefreshCw, Trash2, Users, Mail, UserPlus } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Users, Mail, UserPlus, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { InvitationDialog } from '@/components/onboarding/invitation-dialog';
 import { InvitationList } from '@/components/onboarding/invitation-list';
 import { RoleGuard } from '@/components/role-guard';
+import { PermissionManager } from '@/components/admin/permission-manager';
 import { Permission } from '@/lib/permissions';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { isUnassigned } from '@/lib/rbac';
@@ -75,6 +76,12 @@ export default function RoleManagementPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Permission editor
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionRole, setPermissionRole] = useState<Role | null>(null);
+  const [permissionMap, setPermissionMap] = useState<Record<Permission, boolean> | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && userProfile && isUnassigned(userProfile)) {
@@ -170,6 +177,49 @@ export default function RoleManagementPage() {
     }
   };
 
+  const openPermissions = async (role: Role) => {
+    setPermissionRole(role);
+    setPermissionMap(null);
+    setPermissionsOpen(true);
+    setPermissionsLoading(true);
+    try {
+      const res = await apiFetch(`/api/roles/${role.id}/permissions`, {
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load permissions');
+      setPermissionMap(data.permissions as Record<Permission, boolean>);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load permissions');
+      setPermissionsOpen(false);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  const savePermissions = async (
+    permissions: Record<Permission, boolean>
+  ): Promise<boolean> => {
+    if (!permissionRole) return false;
+    try {
+      const res = await apiFetch(`/api/roles/${permissionRole.id}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save permissions');
+      toast.success(`Permissions updated for ${permissionRole.name}`);
+      setPermissionMap(data.permissions as Record<Permission, boolean>);
+      loadData();
+      return true;
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save permissions');
+      return false;
+    }
+  };
+
   if (authLoading || !userProfile) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -262,19 +312,31 @@ export default function RoleManagementPage() {
                             {(role.user_count ?? role.users?.length ?? 0) !== 1 ? 's' : ''}
                           </p>
                         </div>
-                        {!role.is_system_role && (
+                        <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-2"
                             onClick={() => {
-                              setRoleToDelete(role);
-                              setDeleteOpen(true);
+                              openPermissions(role);
                             }}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Shield className="h-4 w-4" />
+                            Permissions
                           </Button>
-                        )}
+                          {!role.is_system_role && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-2"
+                              onClick={() => {
+                                setRoleToDelete(role);
+                                setDeleteOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -384,6 +446,31 @@ export default function RoleManagementPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Permission editor */}
+        <Dialog open={permissionsOpen} onOpenChange={setPermissionsOpen}>
+          <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Permissions</DialogTitle>
+              <DialogDescription>
+                Choose which permissions this role has. Financial permissions (estimates) are
+                always evaluated inside an account the user can already reach.
+              </DialogDescription>
+            </DialogHeader>
+            {permissionRole && permissionMap && !permissionsLoading && (
+              <PermissionManager
+                roleId={permissionRole.id}
+                roleName={permissionRole.name}
+                currentPermissions={permissionMap}
+                onSave={savePermissions}
+                isSystemRole={permissionRole.is_system_role}
+              />
+            )}
+            {permissionsLoading && (
+              <div className="text-muted-foreground py-8 text-center">Loading permissions...</div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Invite Dialog */}
         <InvitationDialog

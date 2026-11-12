@@ -94,6 +94,18 @@ export enum Permission {
   // ========================================
   MANAGE_CLIENT_INVITES = 'manage_client_invites', // Manage client invitations (admin/account manager permission)
   // Note: Client access and approval permissions are now hardcoded based on is_client flag
+
+  // ========================================
+  // FINANCIAL PERMISSIONS (estimates & billing)
+  // ========================================
+  // These are base permissions only: they are always evaluated in the context
+  // of an account the caller can already reach (see the context match in
+  // lib/permission-checker.ts). There is deliberately no "view all estimates"
+  // override — financial data is never org-wide by default, the same way
+  // MANAGE_ACCOUNTS / MANAGE_PROJECTS have no blanket override either.
+  VIEW_ESTIMATES = 'view_estimates', // Read estimates belonging to an accessible account
+  MANAGE_ESTIMATES = 'manage_estimates', // Create and edit draft estimates for an accessible account
+  MANAGE_ESTIMATE_LIFECYCLE = 'manage_estimate_lifecycle', // Send, accept and reject estimates
 }
 
 // Human-readable permission definitions
@@ -347,6 +359,28 @@ export const PermissionDefinitions: Record<
       'Send client invitations and view client feedback (admin/account manager permission)',
     category: 'Client Portal',
   },
+
+  // ========================================
+  // FINANCIAL PERMISSIONS
+  // ========================================
+  [Permission.VIEW_ESTIMATES]: {
+    name: 'View Estimates',
+    description:
+      'Read estimates and line items for accounts the user has access to. Money values are read-only.',
+    category: 'Financial',
+  },
+  [Permission.MANAGE_ESTIMATES]: {
+    name: 'Manage Estimates',
+    description:
+      'Create draft estimates and edit their line items for accounts the user has access to. Cannot send an estimate to a client.',
+    category: 'Financial',
+  },
+  [Permission.MANAGE_ESTIMATE_LIFECYCLE]: {
+    name: 'Manage Estimate Lifecycle',
+    description:
+      'Move an estimate through its lifecycle (draft → sent → accepted / rejected). Separate from editing so that pricing changes and commercial commitments can be granted independently.',
+    category: 'Financial',
+  },
 };
 
 // Permission categories for UI grouping (excludes deprecated permissions)
@@ -378,6 +412,9 @@ export const PermissionCategories = {
   ),
   'Client Portal': Object.values(Permission).filter(
     (p: Permission) => (PermissionDefinitions as any)[p as string]?.category === 'Client Portal',
+  ),
+  Financial: Object.values(Permission).filter(
+    (p: Permission) => (PermissionDefinitions as any)[p as string]?.category === 'Financial',
   ),
 };
 

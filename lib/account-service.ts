@@ -122,7 +122,7 @@ class AccountService {
         .select(
           `
           *,
-          user_profiles(*)
+          user_profiles!accounts_account_manager_id_fkey(*)
         `,
         )
         .eq('id', accountId)
