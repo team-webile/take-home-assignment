@@ -309,7 +309,36 @@ Account boundary
   PASS  the same user is refused on a second account too
 ```
 
-### 3.6 Known remaining risks (not fixed in this fork)
+### 3.6 A leaked npm token in the base repository — and the rewritten history
+
+The upstream repository ships a live npm registry token in `.npmrc`, committed
+in its initial commit:
+
+```
+//registry.npmjs.org/:_authToken=<redacted>
+```
+
+GitHub's push protection correctly refused the first push of this fork with
+`GH013 — Push cannot contain secrets`. Publishing that token would have been
+the worst possible thing for a submission about handling financial data
+safely, so:
+
+- `.npmrc` is **removed from every commit in this fork's history** (the base
+  commit was rewritten with `git filter-branch`, so its hash differs from
+  upstream — that is the only reason the history looks different);
+- `.npmrc` is now in `.gitignore`, with `!.npmrc.example` kept so others can
+  still onboard;
+- the working tree copy is left alone — it is a local credential and removing
+  it is the owner's call.
+
+Every blob in every commit was scanned for `_authToken`, `npm_*`, `ghp_*`,
+`sbp_*` and `sb_secret_*` patterns after the rewrite; the history is clean.
+
+**This token should be revoked.** If the assignment repository was ever public,
+the token was publicly readable and should be treated as compromised —
+`npm token revoke <token>` on the account that owns it.
+
+### 3.7 Known remaining risks (not fixed in this fork)
 
 These are real and I am not claiming otherwise:
 
@@ -402,9 +431,23 @@ npx tsc --noEmit
 ```
 
 The Estimates code is clean. The repository has pre-existing type errors in
-`components/account-overview.tsx`, `components/department-overview.tsx`,
-`app/projects/page.tsx` and `lib/hooks/use-data.ts` — these predate this work
-and are listed in §3.6.
+`components/account-overview.tsx`, `components/department-overview.tsx` and
+`app/projects/page.tsx` — these predate this work and are listed in §3.7.
+
+`next.config.ts` sets `typescript.ignoreBuildErrors: true`, so `npm run build`
+does not fail on them.
+
+### Production build
+
+```bash
+npm run build     # next build --webpack
+```
+
+The build was run and passes. One genuine build-breaker existed and is fixed
+here: `lib/hooks/use-data.ts` imported `TimePeriod` from
+`@/components/capacity-trend-chart`, a module that does not exist in the
+repository — webpack could not resolve it and `next build` failed outright.
+The type now lives in the hook that uses it (§6).
 
 ---
 
@@ -488,6 +531,7 @@ lib/permissions.ts            + 3 financial permissions, + Financial category
 lib/validation-schemas.ts     + estimate create/update/transition/query schemas
 lib/supabase-server.ts        + getUserFromRequest (fixes 33 routes)
 lib/account-service.ts        ambiguous embed fix
+lib/hooks/use-data.ts         fixes a broken import that broke `next build`
 app/api/accounts/route.js     tenancy filter (was leaking every account)
 app/admin/roles/page.tsx      wires in the permission manager
 components/loading-overlay.tsx render-phase setState fix

@@ -1,7 +1,15 @@
 'use client';
 
 import useSWR from 'swr';
-import { TimePeriod } from '@/components/capacity-trend-chart';
+
+/**
+ * The reporting periods the capacity endpoints understand.
+ *
+ * This used to be imported from `@/components/capacity-trend-chart`, a module
+ * that does not exist in the repository — the import broke `next build`
+ * outright. The type lives here now, next to its only consumer.
+ */
+export type TimePeriod = 'weekly' | 'monthly' | 'quarterly';
 
 /**
  * Optimized data fetching hooks using SWR
