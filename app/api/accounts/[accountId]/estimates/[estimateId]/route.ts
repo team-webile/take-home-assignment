@@ -102,6 +102,10 @@ export async function PATCH(
           {
             error: `Cannot move an estimate from "${result.fromStatus}" to "${validation.data.status}"`,
             code: 'INVALID_TRANSITION',
+            // The status the estimate is actually in. Under a concurrent
+            // transition this is the other writer's status, not the one the
+            // caller expected, so the client can recover without guessing.
+            currentStatus: result.fromStatus,
             allowed: result.allowed,
           },
           { status: 409 }
@@ -121,10 +125,14 @@ export async function PATCH(
       estimateId,
       accountId,
       actorId: userProfile.id,
+      // Pass the parsed values through unchanged: a field the client did not
+      // send stays `undefined` and is left alone, while an explicit `null`
+      // clears it. Coercing with `?? null` here would wipe notes, the
+      // valid-until date and the project link on every partial update.
       title: validation.data.title,
-      notes: validation.data.notes ?? null,
-      validUntil: validation.data.validUntil ?? null,
-      projectId: validation.data.projectId ?? null,
+      notes: validation.data.notes,
+      validUntil: validation.data.validUntil,
+      projectId: validation.data.projectId,
       lineItems: validation.data.lineItems,
     });
 

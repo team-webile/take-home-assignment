@@ -180,17 +180,19 @@ export async function listEstimates(
 /**
  * Fetch a single estimate with its line items and status history.
  *
- * `accountId` is optional but should always be supplied by a route that knows
- * the account in scope: when present it is enforced in the query.
+ * `accountId` is required: the account filter is applied in the query itself,
+ * so a caller cannot read an estimate outside the account it is scoped to.
+ * Making the parameter non-optional turns that from a review item into a
+ * compile error.
  */
-export async function getEstimateById(estimateId: string, accountId?: string) {
+export async function getEstimateById(estimateId: string, accountId: string) {
   const supabase = getClient();
 
-  let query = supabase
+  const query = supabase
     .from('estimates')
     .select('*, projects(id, name)')
-    .eq('id', estimateId);
-  if (accountId) query = query.eq('account_id', accountId);
+    .eq('id', estimateId)
+    .eq('account_id', accountId);
 
   const { data: estimate, error } = await query.maybeSingle();
   if (error) throw new Error(`Failed to load estimate: ${error.message}`);
@@ -411,20 +413,49 @@ export async function transitionEstimate(params: {
   if (params.toStatus === 'accepted') updates.accepted_at = now;
   if (params.toStatus === 'rejected') updates.rejected_at = now;
 
-  const { error: updateError } = await supabase
+  // Optimistic lock: the update only applies while the estimate is still in
+  // the status we validated against. Without it, two concurrent transitions
+  // out of the same state (for example "sent -> accepted" and
+  // "sent -> rejected") would both succeed and both be written to the
+  // history.
+  const { error: updateError, data: updatedRows } = await supabase
     .from('estimates')
     .update(updates)
     .eq('id', params.estimateId)
-    .eq('account_id', params.accountId);
+    .eq('account_id', params.accountId)
+    .eq('status', fromStatus)
+    .select('id');
+
   if (updateError) throw new Error(`Failed to update estimate status: ${updateError.message}`);
 
-  await supabase.from('estimate_status_history').insert({
+  if (!updatedRows || updatedRows.length === 0) {
+    // Somebody else moved the estimate while we were validating. Report the
+    // transitions that are allowed from its *current* status.
+    const { data: current } = await supabase
+      .from('estimates')
+      .select('status')
+      .eq('id', params.estimateId)
+      .eq('account_id', params.accountId)
+      .maybeSingle();
+
+    const currentStatus = (current?.status as EstimateStatus) ?? fromStatus;
+    return {
+      error: 'invalid_transition',
+      fromStatus: currentStatus,
+      allowed: ALLOWED_TRANSITIONS[currentStatus] ?? [],
+    };
+  }
+
+  const { error: historyError } = await supabase.from('estimate_status_history').insert({
     estimate_id: params.estimateId,
     from_status: fromStatus,
     to_status: params.toStatus,
     actor_id: params.actorId,
     note: params.note ?? null,
   });
+  if (historyError) {
+    throw new Error(`Failed to record estimate status history: ${historyError.message}`);
+  }
 
   return { error: null, fromStatus };
 }

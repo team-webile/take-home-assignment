@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthAndPermission, handleGuardError } from '@/lib/server-guards';
 import { Permission } from '@/lib/permissions';
 import { createAdminSupabaseClient } from '@/lib/supabase-server';
+import { clearPermissionCache } from '@/lib/permission-checker';
 import { isValidUUID } from '@/lib/validation-helpers';
 
 export const dynamic = 'force-dynamic';
@@ -176,6 +177,10 @@ export async function PUT(
     if (error) {
       throw new Error(`Failed to update permissions: ${error.message}`);
     }
+
+    // Permission decisions are cached for five minutes. Drop the cache so the
+    // change is visible immediately rather than after the TTL.
+    clearPermissionCache();
 
     return NextResponse.json({ success: true, permissions: next });
   } catch (error) {

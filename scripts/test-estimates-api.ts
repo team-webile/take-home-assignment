@@ -59,6 +59,13 @@ const arg = (name: string) => {
 
 const EMAIL = arg('email') || 'manager@test.local';
 const LOW_PRIVILEGE_EMAIL = arg('low-privilege-email') || 'contributor@test.local';
+const ADMIN_EMAIL = arg('admin-email') || 'admin@test.local';
+
+// The seeded Contributor role and the Harlow account. The Contributor is a
+// member of Harlow, which is what makes it possible to prove that a
+// permission change takes effect immediately.
+const CONTRIBUTOR_ROLE_ID = '70707070-7070-7070-7070-707070707070';
+const HARLOW_ACCOUNT_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-000000000003';
 
 // ---------------------------------------------------------------------------
 // Assertions
@@ -247,6 +254,73 @@ async function main() {
     one.json?.estimate?.status_history
   );
 
+  section('Draft edit');
+  // A partial update must only touch the fields it actually carries. An
+  // omitted field is `undefined` (leave alone); an explicit null clears it.
+  const withMeta = await api(`${base}/${estimateId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      notes: 'Payment terms: net 30. Scope: discovery + delivery.',
+      validUntil: '2026-12-31',
+    }),
+  });
+  check('a draft can be edited', withMeta.status === 200, withMeta.json);
+  check('notes are stored', withMeta.json?.estimate?.notes === 'Payment terms: net 30. Scope: discovery + delivery.', withMeta.json?.estimate);
+  check('valid until is stored', withMeta.json?.estimate?.valid_until === '2026-12-31', withMeta.json?.estimate);
+
+  const titleOnly = await api(`${base}/${estimateId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title: 'Smoke test estimate (renamed)' }),
+  });
+  check('a partial update returns 200', titleOnly.status === 200, titleOnly.json);
+  check(
+    'a partial update does not clear the notes',
+    titleOnly.json?.estimate?.notes === 'Payment terms: net 30. Scope: discovery + delivery.',
+    titleOnly.json?.estimate
+  );
+  check(
+    'a partial update does not clear the valid-until date',
+    titleOnly.json?.estimate?.valid_until === '2026-12-31',
+    titleOnly.json?.estimate
+  );
+  check(
+    'a partial update does not clear the project link',
+    titleOnly.json?.estimate?.project_id === null,
+    titleOnly.json?.estimate
+  );
+
+  section('Input validation');
+  const negative = await api(`${base}`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': `smoke-negative-${Date.now()}` },
+    body: JSON.stringify({
+      title: 'Smoke test negative amount',
+      currency: 'USD',
+      lineItems: [
+        { description: 'Negative line', quantityMilli: 1000, unitAmountMinor: -500, taxRateBasisPoints: 0 },
+      ],
+    }),
+  });
+  check(
+    'a negative unit amount is rejected with 400 (not a 500)',
+    negative.status === 400,
+    { status: negative.status, body: negative.json }
+  );
+  const zeroQuantity = await api(`${base}`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': `smoke-zeroqty-${Date.now()}` },
+    body: JSON.stringify({
+      title: 'Smoke test zero quantity',
+      currency: 'USD',
+      lineItems: [{ description: 'Zero line', quantityMilli: 0, unitAmountMinor: 500, taxRateBasisPoints: 0 }],
+    }),
+  });
+  check(
+    'a zero quantity is rejected with 400',
+    zeroQuantity.status === 400,
+    { status: zeroQuantity.status, body: zeroQuantity.json }
+  );
+
   section('Lifecycle');
   const send = await api(`${base}/${estimateId}`, {
     method: 'PATCH',
@@ -288,6 +362,56 @@ async function main() {
     history
   );
 
+  section('Concurrent transitions');
+  // Two transitions fired at the same time from the same draft. Both are
+  // individually legal from `draft`, so without an optimistic lock both would
+  // pass the validity check and both would append a status-history row.
+  const race = await api(base, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': `smoke-race-${Date.now()}` },
+    body: JSON.stringify({ ...body, title: 'Race test estimate' }),
+  });
+  const raceId = race.json?.estimate?.id;
+  check('a second estimate can be created for the race', typeof raceId === 'string', race.json);
+
+  if (raceId) {
+    const [r1, r2] = await Promise.all([
+      api(`${base}/${raceId}`, { method: 'PATCH', body: JSON.stringify({ status: 'sent' }) }),
+      api(`${base}/${raceId}`, { method: 'PATCH', body: JSON.stringify({ status: 'void' }) }),
+    ]);
+    const codes = [r1.status, r2.status].sort((a, b) => a - b);
+    check(
+      'exactly one of two concurrent transitions wins',
+      codes[0] === 200 && codes[1] === 409,
+      { first: r1.status, second: r2.status, bodies: [r1.json, r2.json] }
+    );
+
+    const loser = r1.status === 409 ? r1 : r2;
+    check(
+      'the loser is told the status the estimate is really in',
+      typeof loser.json?.currentStatus === 'string',
+      loser.json
+    );
+    check(
+      'the loser is told which transitions are allowed now',
+      Array.isArray(loser.json?.allowed),
+      loser.json
+    );
+
+    const raceAfter = await api(`${base}/${raceId}`);
+    const raceHistory: any[] = raceAfter.json?.estimate?.status_history ?? [];
+    check(
+      'only one transition was recorded — no double history',
+      raceHistory.filter((h) => h.from_status === 'draft').length === 1,
+      raceHistory.map((h) => `${h.from_status}->${h.to_status}`)
+    );
+    check(
+      'the estimate ended in exactly one of the two requested statuses',
+      ['sent', 'void'].includes(raceAfter.json?.estimate?.status),
+      raceAfter.json?.estimate?.status
+    );
+  }
+
   section('Filtering');
   const filtered = await api(`${base}?status=accepted`);
   check('filtered list returns 200', filtered.status === 200, filtered.json);
@@ -323,6 +447,53 @@ async function main() {
       'the same user is refused on a second account too',
       other.status === 403,
       { status: other.status, body: other.json }
+    );
+  }
+
+  section('Permission cache invalidation');
+  // Permission decisions are cached for five minutes. A grant made through the
+  // role API has to take effect at once, otherwise the permission editor looks
+  // broken for five minutes after every change.
+  const adminCookie = await buildSessionCookie(ADMIN_EMAIL);
+  const adminApi = apiClient(adminCookie);
+
+  const original = await adminApi(`/api/roles/${CONTRIBUTOR_ROLE_ID}/permissions`);
+  check('an admin can read a role permission map', original.status === 200, original.json);
+  const originalMap: Record<string, boolean> = original.json?.permissions ?? {};
+
+  try {
+    const before = await lowApi(`/api/accounts/${HARLOW_ACCOUNT_ID}/estimates`);
+    check(
+      'the contributor can read estimates in their own account',
+      before.status === 200,
+      { status: before.status, body: before.json }
+    );
+
+    const revoked = await adminApi(`/api/roles/${CONTRIBUTOR_ROLE_ID}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: { ...originalMap, view_estimates: false } }),
+    });
+    check('the permission map can be replaced', revoked.status === 200, revoked.json);
+
+    const after = await lowApi(`/api/accounts/${HARLOW_ACCOUNT_ID}/estimates`);
+    check(
+      'a revoked permission takes effect immediately, without waiting for the cache',
+      after.status === 403,
+      { status: after.status, body: after.json }
+    );
+  } finally {
+    // Always put the role back the way it was, whatever happened above.
+    const restored = await adminApi(`/api/roles/${CONTRIBUTOR_ROLE_ID}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: originalMap }),
+    });
+    check('the original permission map can be restored', restored.status === 200, restored.json);
+
+    const afterRestore = await lowApi(`/api/accounts/${HARLOW_ACCOUNT_ID}/estimates`);
+    check(
+      'the restored permission takes effect immediately too',
+      afterRestore.status === 200,
+      { status: afterRestore.status, body: afterRestore.json }
     );
   }
 

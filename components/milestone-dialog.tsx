@@ -5,6 +5,9 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   accountId?: string;
   projectId?: string;
+  /** Passed by the account overview; accepted so the call site type-checks. */
+  onCreateMilestone?: (data: unknown) => Promise<void>;
+  initialDate?: Date;
 };
 
 /**

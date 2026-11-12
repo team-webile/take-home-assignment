@@ -1,8 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { UserWithRoles } from '@/lib/rbac';
 
 type Props = {
   accountId?: string;
   projectId?: string;
+  /** Passed by the account overview; accepted so the call site type-checks. */
+  userProfile?: UserWithRoles;
+  /** 'account' when rendered inside an account overview. */
+  mode?: string;
 };
 
 /**

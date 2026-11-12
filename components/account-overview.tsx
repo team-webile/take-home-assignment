@@ -59,6 +59,11 @@ import {
 } from '@/components/ui/dialog';
 import { AccountEditDialog } from '@/components/account-edit-dialog';
 import { apiFetch } from '@/lib/api-config';
+import {
+  accountKanbanConfigService,
+  DEFAULT_KANBAN_COLUMNS,
+  type KanbanColumn,
+} from '@/lib/account-kanban-config-service';
 
 interface AccountOverviewProps {
   account: AccountWithProjects;
@@ -67,14 +72,6 @@ interface AccountOverviewProps {
   userProfile: UserWithRoles;
   hasFullAccess?: boolean; // If false, user has read-only access (project stakeholder only)
 }
-
-// Default kanban columns - will be overridden by account-specific config
-const DEFAULT_KANBAN_COLUMNS: KanbanColumn[] = [
-  { id: 'planned', name: 'Planned', color: '#6B7280', order: 1 },
-  { id: 'in-progress', name: 'In Progress', color: '#3B82F6', order: 2 },
-  { id: 'review', name: 'Review', color: '#F59E0B', order: 3 },
-  { id: 'complete', name: 'Complete', color: '#10B981', order: 4 },
-];
 
 export function AccountOverview({
   account,

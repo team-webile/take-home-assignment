@@ -196,12 +196,14 @@ export async function hasAccountAccess(
   const supabase = supabaseClient || createClientSupabase();
   if (!supabase) return false;
 
-  // Check if user is a member of the account
+  // Check if user is a member of the account.
+  // A revoked membership (`removed_at` is set) must not grant access.
   const { data: memberData, error: _memberError } = await supabase
     .from('account_members')
     .select('id')
     .eq('user_id', userId)
     .eq('account_id', accountId)
+    .is('removed_at', null)
     .limit(1);
 
   if (memberData && memberData.length > 0) {

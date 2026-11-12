@@ -473,8 +473,14 @@ export const estimateStatusSchema = z.enum([
 
 export const estimateLineItemInputSchema = z.object({
   description: z.string().min(1, 'Line description is required').max(500),
-  quantityMilli: z.number().int('Quantity must be a whole number of thousandths'),
-  unitAmountMinor: z.number().int('Unit amount must be an integer of minor units'),
+  quantityMilli: z
+    .number()
+    .int('Quantity must be a whole number of thousandths')
+    .min(1, 'Quantity must be greater than zero'),
+  unitAmountMinor: z
+    .number()
+    .int('Unit amount must be an integer of minor units')
+    .min(0, 'Unit amount cannot be negative'),
   taxRateBasisPoints: z.number().int().min(0).max(10000).optional().default(0),
 });
 

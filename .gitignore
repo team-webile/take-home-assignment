@@ -30,6 +30,7 @@ backend/dist/
 # =============================================================
 .env.local
 .env.*.local
+.env.local.demo
 backend/.env
 supabase/.env
 # npm registry credentials — the token lives here, never commit it
