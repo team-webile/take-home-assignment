@@ -731,12 +731,17 @@ app/api/accounts/route.js     tenancy filter (was leaking every account)
 app/admin/roles/page.tsx      wires in the permission manager
 app/api/roles/[roleId]/permissions/route.ts   invalidates the permission cache after a write
 app/api/accounts/[accountId]/estimates/[estimateId]/route.ts   PATCH no longer nulls absent fields
-components/account-overview.tsx   imports the (previously missing) kanban config service
+components/account-overview.tsx   imports the (previously missing) kanban config service;
+                                  adds the Estimates button that links to the account's estimates
 components/loading-overlay.tsx render-phase setState fix
+package.json                    flexible-layout-tools moved to optionalDependencies
+                                (its transitive dep was unpublished from npm, which broke
+                                a fresh `npm install`)
 supabase/schema.sql           display_order columns, status CHECK constraints
 supabase/seed-roles.sql       re-runnable, grants the estimate permissions
 scripts/create-seed-users.ts  project status values
-scripts/test-estimates-api.ts + draft-edit and input-validation checks
+scripts/test-estimates-api.ts + draft-edit, input-validation, concurrent-transition
+                              and permission-cache checks
 ```
 
 ---
@@ -758,3 +763,16 @@ scripts/test-estimates-api.ts + draft-edit and input-validation checks
 - The Estimates pages resolve the account name in `generateMetadata` before the
   server-side access check runs, so a denied user still learns the account name
   from the document title (§3.7).
+- **There is no `package-lock.json`.** The base repository does not ship one, so
+  a fresh install resolves whatever the registry offers today. That is how the
+  `flexible-layout-tools` breakage was possible in the first place — its
+  dependency `@utilityforge/dynamic-interface-kit` has been unpublished from
+  npm, so `npm install` died with `E404`. The dependency is now an
+  `optionalDependencies` entry (the Tailwind plugin was already optional at
+  runtime), so the install succeeds, but a lockfile is the real fix and is
+  worth adding.
+- **The Estimates feature needs the service-role key at runtime** (§2.3,
+  §4). It is read from `SUPABASE_SERVICE_ROLE_KEY` on the server and never
+  reaches the browser, but it does mean the feature cannot run on a
+  publishable key alone. That is a deliberate trade-off for server-side data
+  access, and it is the one piece of configuration a reviewer must supply.
